@@ -3337,6 +3337,8 @@ gst_qt_mux_handle_buffer (GstCollectPads * pads, GstCollectData * cdata,
   GstQTMux *qtmux = GST_QT_MUX_CAST (user_data);
   GstQTPad *best_pad = NULL;
 
+  GST_DEBUG_OBJECT (qtmux, "HOGEHOGE");
+
   if (G_UNLIKELY (qtmux->state == GST_QT_MUX_STATE_STARTED)) {
     if ((ret = gst_qt_mux_start_file (qtmux)) != GST_FLOW_OK)
       return ret;
