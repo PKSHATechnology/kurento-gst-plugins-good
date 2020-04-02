@@ -4041,7 +4041,7 @@ gst_rtsp_conninfo_connect (GstRTSPSrc * src, GstRTSPConnInfo * info,
   gboolean retry = FALSE;
   memset (&response, 0, sizeof (response));
   gst_rtsp_message_init (&response);
-  GST_DEBUG_OBJECT (src, "HOGEHOGE");
+  GST_ERROR_OBJECT (src, "HOGEHOGE");
   do {
     if (info->connection == NULL) {
       if (info->url == NULL) {
@@ -7539,7 +7539,7 @@ gst_rtspsrc_handle_message (GstBin * bin, GstMessage * message)
   GstRTSPSrc *rtspsrc;
 
   rtspsrc = GST_RTSPSRC (bin);
-  GST_DEBUG_OBJECT (bin, "HOGEHOGE");
+  GST_ERROR_OBJECT (bin, "HOGEHOGE");
 
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_EOS:
