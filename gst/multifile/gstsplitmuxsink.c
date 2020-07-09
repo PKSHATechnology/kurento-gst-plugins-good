@@ -87,6 +87,7 @@ enum
 enum
 {
   SIGNAL_FORMAT_LOCATION,
+  SIGNAL_RECORD_FRAME,
   SIGNAL_LAST
 };
 
@@ -234,6 +235,19 @@ gst_splitmux_sink_class_init (GstSplitMuxSinkClass * klass)
   signals[SIGNAL_FORMAT_LOCATION] =
       g_signal_new ("format-location", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_STRING, 1, G_TYPE_UINT);
+
+  /**
+   * GstSplitMuxSink::record-frame:
+   * @splitmux: the #GstSplitMuxSink
+   * @fragment_id: the sequence number of the file to be created
+   * @pts: pts
+   * @offset_in_file: offset of pts in the file
+   * @file_path: the path of the file
+   */
+  signals[SIGNAL_RECORD_FRAME] =
+      g_signal_new ("record-frame", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE,
+      4, G_TYPE_UINT, GST_TYPE_CLOCK_TIME, GST_TYPE_CLOCK_TIME, G_TYPE_STRING);
 }
 
 static void
@@ -246,6 +260,8 @@ gst_splitmux_sink_init (GstSplitMuxSink * splitmux)
   splitmux->threshold_time = DEFAULT_MAX_SIZE_TIME;
   splitmux->threshold_bytes = DEFAULT_MAX_SIZE_BYTES;
   splitmux->max_files = DEFAULT_MAX_FILES;
+  splitmux->last_file_name = NULL;
+  splitmux->current_file_name = NULL;
 
   GST_OBJECT_FLAG_SET (splitmux, GST_ELEMENT_FLAG_SINK);
   g_object_set (splitmux, "async-handling", TRUE, NULL);
@@ -590,6 +606,7 @@ handle_mq_output (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
 {
   GstSplitMuxSink *splitmux = ctx->splitmux;
   MqStreamBuf *buf_info = NULL;
+  GstClockTime offset_in_file;
 
   GST_LOG_OBJECT (pad, "Fired probe type 0x%x", info->type);
 
@@ -683,6 +700,26 @@ handle_mq_output (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
   if (buf_info == NULL)
     /* Can only happen due to a poorly timed flush */
     goto beach;
+
+  if (g_strcmp0 (splitmux->last_file_name, splitmux->current_file_name) != 0) {
+    if (splitmux->current_file_name != NULL) {
+      if (splitmux->last_file_name) {
+        g_free (splitmux->last_file_name);
+      }
+
+      splitmux->last_file_name = g_strdup (splitmux->current_file_name);
+      splitmux->start_time_in_file = buf_info->run_ts;
+    }
+  }
+
+  if (splitmux->last_file_name != NULL) {
+    offset_in_file = buf_info->run_ts - splitmux->start_time_in_file;
+    GST_DEBUG_OBJECT (splitmux, "current_file:%s pts:%lu offset:%lu",
+        splitmux->current_file_name, buf_info->run_ts, offset_in_file);
+    g_signal_emit (splitmux, signals[SIGNAL_RECORD_FRAME], 0,
+        splitmux->fragment_id, buf_info->run_ts,
+        offset_in_file, splitmux->last_file_name);
+  }
 
   /* If we have popped a keyframe, decrement the queued_gop count */
   if (buf_info->keyframe && splitmux->queued_gops > 0)
@@ -1561,6 +1598,12 @@ static void
 set_next_filename (GstSplitMuxSink * splitmux)
 {
   gchar *fname = NULL;
+
+  if (splitmux->current_file_name) {
+    g_free (splitmux->current_file_name);
+    splitmux->current_file_name = NULL;
+  }
+
   gst_splitmux_sink_ensure_max_files (splitmux);
 
   g_signal_emit (splitmux, signals[SIGNAL_FORMAT_LOCATION], 0,
@@ -1573,7 +1616,7 @@ set_next_filename (GstSplitMuxSink * splitmux)
   if (fname) {
     GST_INFO_OBJECT (splitmux, "Setting file to %s", fname);
     g_object_set (splitmux->sink, "location", fname, NULL);
-    g_free (fname);
+    splitmux->current_file_name = fname;
 
     splitmux->fragment_id++;
   }
