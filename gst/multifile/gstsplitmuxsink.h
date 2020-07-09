@@ -125,6 +125,10 @@ struct _GstSplitMuxSink {
   gsize mux_start_bytes;
 
   gboolean opening_first_fragment;
+
+  gchar *current_file_name;
+  gchar *last_file_name;
+  GstClockTime start_time_in_file;
 };
 
 struct _GstSplitMuxSinkClass {
